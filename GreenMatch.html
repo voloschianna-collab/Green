@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подбор растений GreenMatch</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* Дополнительный CSS для корректного переноса слов */
+        .break-words {
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Импортируем иконки Lucide React (для простоты используем их как обычные компоненты)
+        const { useState, useMemo } = React;
+        
+        // Иконки (просто JSX, используемые в коде)
+        const Sun = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>;
+        const CloudRain = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a5 5 0 0 1 0 10h-2.22"></path><path d="M16 20v-2"></path><path d="M8 20v-2"></path><path d="M12 16v-2"></path></svg>;
+        const ShieldCheck = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path><path d="m9 12 2 2 4-4"></path></svg>;
+        const Thermometer = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"></path></svg>;
+        const Maximize = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>;
+        const ArrowRight = ({ className, size }) => <svg xmlns="http://www.w3.org/2000/svg" width={size || 24} height={size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>;
+        const RefreshCw = ({ className, size }) => <svg xmlns="http://www.w3.org/2000/svg" width={size || 24} height={size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M3 21v-5h5"></path></svg>;
+        const Check = ({ className, size }) => <svg xmlns="http://www.w3.org/2000/svg" width={size || 24} height={size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 6 9 17l-5-5"></path></svg>;
+        const Info = ({ className, size }) => <svg xmlns="http://www.w3.org/2000/svg" width={size || 24} height={size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>;
+
+        // --- БАЗА ДАННЫХ РАСТЕНИЙ (12 вариантов) ---
+        const plantsDB = [
+          {
+            id: 'sansevieria',
+            name: "Сансевиерия (Тещин язык)",
+            latin: "Sansevieria trifasciata",
+            tags: { light: ['low', 'medium'], water: ['medium', 'rare'], safe: false, tolerance: 'tolerant', size: 'compact' },
+            description: "Это растение — символ выживаемости. Очищает воздух, активно работая ночью. Полив необходим только после полного просыхания грунта. Идеально для северных окон и забывчивых владельцев.",
+            why: "Ваш профиль: низкий/средний свет и редкий полив. Сансевиерия — чемпион в этих условиях, прощает нерегулярный уход и не требует стабильного климата.",
+            quote: "Истинная сила — в умении процветать при любых обстоятельствах, а не требовать их.",
+            color: "bg-emerald-800"
+          },
+          {
+            id: 'zamioculcas',
+            name: "Замиокулькас (Долларовое дерево)",
+            latin: "Zamioculcas zamiifolia",
+            tags: { light: ['low'], water: ['rare'], safe: false, tolerance: 'tolerant', size: 'compact' },
+            description: "Стильный суккулент, который накапливает влагу в клубнях. Требует минимум внимания и полива. Чрезвычайно вынослив, не переносит только перелив. Идеален для тенистых мест.",
+            why: "Идеальное совпадение для: низкого света, редкого полива и компактного размера. Замиокулькас — лучший выбор для темных помещений и тех, кто часто забывает о цветах.",
+            quote: "Успех приходит к тем, кто не торопится и знает цену терпению.",
+            color: "bg-green-700"
+          },
+          {
+            id: 'chlorophytum',
+            name: "Хлорофитум Хохлатый",
+            latin: "Chlorophytum comosum",
+            tags: { light: ['low', 'medium', 'high'], water: ['medium', 'frequent'], safe: true, tolerance: 'tolerant', size: 'compact' },
+            description: "Чемпион NASA по очистке воздуха. Абсолютно безопасен, нетоксичен. Быстро растет и легко адаптируется к перепадам условий. Идеальный вариант для кухни или спальни.",
+            why: "Требование безопасности для питомцев/детей, совмещенное с выносливостью. Хлорофитум не только полностью безвреден, но и справится с любым вашим светом и поливом.",
+            quote: "Забота о безопасности — это не ограничение, а основа для роста.",
+            color: "bg-lime-600"
+          },
+          {
+            id: 'spathiphyllum',
+            name: "Спатифиллум (Женское счастье)",
+            latin: "Spathiphyllum",
+            tags: { light: ['low', 'medium'], water: ['frequent'], safe: false, tolerance: 'sensitive', size: 'compact' },
+            description: "Элегантное тропическое растение, которое опустит листья, когда ему требуется полив. Отлично подходит для рассеянного света и стабильно теплых, влажных помещений.",
+            why: "Вы готовы к частому поливу и у вас умеренный свет. Спатифиллум отблагодарит вас цветением за внимание к его режиму питья и стабильному климату.",
+            quote: "Настоящая красота требует регулярного внимания и отклика на его потребности.",
+            color: "bg-teal-700"
+          },
+          {
+            id: 'monstera',
+            name: "Монстера Делициоза",
+            latin: "Monstera deliciosa",
+            tags: { light: ['medium', 'high'], water: ['medium'], safe: false, tolerance: 'sensitive', size: 'large' },
+            description: "Тропический гигант. Требует много места и рассеянного яркого света, чтобы листья были крупными и резными. Не любит прямых лучей и сквозняков, требует стабильного климата.",
+            why: "Вам нужно крупное растение для яркого/среднего света, и вы обеспечиваете ему стабильный микроклимат. Монстера — впечатляющий тропический акцент, требующий пространства и внимания.",
+            quote: "Рост и масштаб — не цель, а естественный результат правильно созданных условий.",
+            color: "bg-green-900"
+          },
+          {
+            id: 'ficus_elastica',
+            name: "Фикус Эластика (Каучуконосный)",
+            latin: "Ficus elastica",
+            tags: { light: ['medium', 'high'], water: ['medium', 'rare'], safe: false, tolerance: 'tolerant', size: 'large' },
+            description: "Классический вариант для большого интерьера. Имеет глянцевые, плотные листья. Очень не любит перестановок, но прощает нерегулярный полив. Идеален для формирования крупного древовидного растения.",
+            why: "Вы ищете крупное, но выносливое растение для яркого света. Фикус Эластика — идеальный баланс между внушительным размером и толерантностью к перепадам температуры.",
+            quote: "Стойкость и постоянство — признаки истинной, вечной ценности.",
+            color: "bg-stone-700"
+          },
+          {
+            id: 'calathea',
+            name: "Калатея",
+            latin: "Calathea",
+            tags: { light: ['low', 'medium'], water: ['frequent'], safe: true, tolerance: 'sensitive', size: 'compact' },
+            description: "Растение-индикатор влажности. Потрясающие узорчатые листья. Она безопасна, но очень требовательна к стабильной температуре и высокой влажности воздуха (частое опрыскивание).",
+            why: "Вам нужно безопасное растение, и вы готовы к частому уходу в стабильно теплом помещении. Калатея — это вызов: она вознаградит вас роскошной листвой, но требует постоянного внимания.",
+            quote: "Самое красивое требует самого тщательного и нежного ухода.",
+            color: "bg-purple-900"
+          },
+          {
+            id: 'crassula',
+            name: "Крассула (Денежное дерево)",
+            latin: "Crassula ovata",
+            tags: { light: ['high'], water: ['rare'], safe: false, tolerance: 'tolerant', size: 'compact' },
+            description: "Древовидный суккулент с толстыми, круглыми листьями. Обожает солнце и не переносит перелива. Идеален для южного подоконника. При недостатке света вытягивается.",
+            why: "Ваше главное преимущество — яркий, прямой свет, а полив — редкий. Крассула использует это на 100%, формируя крепкую крону. Это ее естественная среда.",
+            quote: "Накопление ресурсов в себе — основа любой устойчивой системы.",
+            color: "bg-amber-600"
+          },
+          {
+            id: 'pothos',
+            name: "Эпипремнум (Потос)",
+            latin: "Epipremnum aureum",
+            tags: { light: ['low', 'medium'], water: ['medium'], safe: false, tolerance: 'tolerant', size: 'compact' },
+            description: "Популярная лиана, идеальная для подвешивания. Легко переносит тень и прощает пропуски полива. Очень быстро растет, но ядовит при попадании внутрь.",
+            why: "Вам нужно выносливое, компактное растение для тени или среднего света с умеренным поливом. Потос — идеальный выбор, если вам не нужна безопасность.",
+            quote: "Гибкость — это не слабость, а способность расти в любом направлении.",
+            color: "bg-amber-700"
+          },
+          {
+            id: 'alocasia',
+            name: "Алоказия",
+            latin: "Alocasia spp.",
+            tags: { light: ['medium'], water: ['frequent'], safe: false, tolerance: 'sensitive', size: 'large' },
+            description: "Впечатляющее растение с крупными, часто узорчатыми листьями. Требует много места, стабильного тепла, высокой влажности и частый полив. Очень чувствительна к сквознякам.",
+            why: "Вам нужно крупное растение, вы обеспечиваете стабильный климат и готовы к частому поливу. Алоказия подарит вашему интерьеру тропический шик, но требует регулярного внимания.",
+            quote: "Внушительный вид всегда требует жертв и утонченного внимания.",
+            color: "bg-slate-900"
+          },
+          {
+            id: 'maranta',
+            name: "Маранта (Молящееся растение)",
+            latin: "Maranta leuconeura",
+            tags: { light: ['low', 'medium'], water: ['frequent'], safe: true, tolerance: 'sensitive', size: 'compact' },
+            description: "Небольшое, безопасное растение с необычными листьями, которые складываются к вечеру. Требует высокой влажности и частый полив, не переносит прямого солнца.",
+            why: "Вы ищете компактное, безопасное растение для тени и готовы к частому, внимательному поливу. Маранта отлично подойдет для стабильно теплого, затененного места.",
+            quote: "Даже в тишине и тени можно найти свой ритм и движение.",
+            color: "bg-pink-900"
+          },
+          {
+            id: 'strelitzia',
+            name: "Стрелиция (Райская птица)",
+            latin: "Strelitzia reginae",
+            tags: { light: ['high'], water: ['medium'], safe: false, tolerance: 'tolerant', size: 'large' },
+            description: "Эффектное растение-дерево, требующее максимального количества света и пространства. Вынослива к перепадам, но не переносит недостаток солнца.",
+            why: "Вам нужно очень крупное растение для самого яркого, солнечного места в доме. Стрелиция, в отличие от Монстеры, более толерантна к сквознякам и перепадам, если получает много света.",
+            quote: "Чтобы расцвести, нужно подняться выше всех и поймать солнце.",
+            color: "bg-orange-500"
+          }
+        ];
+
+        // --- ВОПРОСЫ (5 вопросов) ---
+        const questions = [
+          {
+            id: 'light',
+            text: "Какой уровень освещенности в комнате?",
+            sub: "Свет — главный источник энергии. Без него растение не выживет.",
+            icon: <Sun className="w-6 h-6" />,
+            options: [
+              { text: "Южное окно / Прямое солнце", value: "high", desc: "Яркий свет с прямыми лучами" },
+              { text: "Восточное/Западное / Рассеянный свет", value: "medium", desc: "Светло, но лучи не жгут" },
+              { text: "Северное окно / В глубине комнаты", value: "low", desc: "Всегда тень или искусственный свет" }
+            ]
+          },
+          {
+            id: 'water',
+            text: "Как часто вы готовы уделять внимание поливу?",
+            sub: "Будьте честны. Большинство растений гибнет от избытка воды.",
+            icon: <CloudRain className="w-6 h-6" />,
+            options: [
+              { text: "Слежу за влажностью, поливаю часто", value: "frequent", desc: "Раз в 3-5 дней, регулярно" },
+              { text: "Поливаю, когда вспомню, раз в неделю-две", value: "medium", desc: "Умеренный, стандартный режим" },
+              { text: "Часто забываю / Уезжаю надолго", value: "rare", desc: "Раз в 2-4 недели" }
+            ]
+          },
+          {
+            id: 'safe',
+            text: "Есть ли у вас дома животные или маленькие дети?",
+            sub: "Многие популярные растения (фикусы, монстеры) содержат токсичный сок.",
+            icon: <ShieldCheck className="w-6 h-6" />,
+            options: [
+              { text: "Да, нужна полная безопасность (нетоксичные)", value: "safe", desc: "Если есть риск контакта, важен только нетоксичный выбор" },
+              { text: "Нет, этот критерий не важен", value: "unsafe", desc: "Растение будет недоступно" }
+            ]
+          },
+          {
+            id: 'tolerance',
+            text: "Как вы оцениваете микроклимат в квартире?",
+            sub: "Перепады температуры и холодный воздух из окна — главный стресс для растений.",
+            icon: <Thermometer className="w-6 h-6" />,
+            options: [
+              { text: "Стабильно тепло (нет сквозняков, ровная температура)", value: "sensitive", desc: "Подходит для капризных, чувствительных к климату видов" },
+              { text: "Бывают сквозняки / Рядом батареи / Открываю окно", value: "tolerant", desc: "Нужны «выносливые» растения, устойчивые к перепадам" }
+            ]
+          },
+          {
+            id: 'size',
+            text: "Каковы ваши ожидания от роста и размера?",
+            sub: "Некоторые растения могут вырасти под потолком за 2 года.",
+            icon: <Maximize className="w-6 h-6" />,
+            options: [
+              { text: "Компактный рост, поместится на полке/столе", value: "compact", desc: "Медленный рост, небольшое пространство" },
+              { text: "Крупное, нужно заполнить угол, быстро растет", value: "large", desc: "Много свободного пространства" }
+            ]
+          }
+        ];
+
+
+        // --- ГЛАВНЫЙ КОМПОНЕНТ ПРИЛОЖЕНИЯ ---
+        function App() {
+          const [step, setStep] = useState(0);
+          const [answers, setAnswers] = useState({});
+          const [finished, setFinished] = useState(false);
+          
+          // Прогресс в процентах
+          const progress = ((step + 1) / questions.length) * 100;
+
+          
+          // Обработка выбора ответа
+          const handleSelect = (questionId, value) => {
+            const newAnswers = { ...answers, [questionId]: value };
+            setAnswers(newAnswers);
+            
+            // Переход к следующему шагу или завершение теста
+            if (step < questions.length - 1) {
+              setTimeout(() => setStep(step + 1), 250); 
+            } else {
+              setFinished(true);
+            }
+          };
+
+          // Перезапуск теста
+          const restart = () => {
+            setStep(0);
+            setAnswers({});
+            setFinished(false);
+          };
+
+          // --- ЛОГИКА ПОДБОРА РАСТЕНИЯ (Сложный скоринг) ---
+          const bestMatchData = useMemo(() => {
+            if (!finished) return null;
+            
+            const { light, water, safe, tolerance, size } = answers;
+
+            const scoredCandidates = plantsDB.map(plant => {
+              let score = 0;
+              
+              // 1. БЕЗОПАСНОСТЬ (Критический множитель)
+              if (safe === 'safe') {
+                  if (plant.tags.safe === true) score += 50; // Большой бонус для безопасных
+                  else score -= 300; // Огромный штраф для небезопасных (гарантированный провал)
+              } else {
+                   score += 10; 
+              }
+              
+              // 2. ОСВЕЩЕНИЕ (Главный фактор выживания)
+              if (plant.tags.light.includes(light)) {
+                score += 30; // Базовый бонус за совпадение
+                
+                // ULTRA-БОНУСЫ за идеальное попадание
+                if (plant.id === 'crassula' && light === 'high') score += 20; 
+                if (plant.id === 'zamioculcas' && light === 'low') score += 20; 
+                if (plant.id === 'spathiphyllum' && light === 'low') score += 10;
+
+              } else {
+                score -= 100; // Жесткий штраф за несовпадение света
+              }
+
+              // 3. ПОЛИВ (Риск перелива/засухи)
+              if (plant.tags.water.includes(water)) {
+                score += 30;
+              } 
+              
+              // А. ШТРАФ: Суккуленты (редкий полив) при частом поливе
+              if (water === 'frequent' && (plant.id === 'zamioculcas' || plant.id === 'crassula')) {
+                score -= 80; 
+              }
+              // Б. ШТРАФ: Водолюбивые (частый полив) при редком поливе
+               if (water === 'rare' && (plant.id === 'spathiphyllum' || plant.id === 'calathea' || plant.id === 'alocasia' || plant.id === 'maranta')) {
+                score -= 80;
+              }
+
+              // 4. МИКРОКЛИМАТ/ТОЛЕРАНТНОСТЬ
+              if (tolerance === plant.tags.tolerance) {
+                  score += 20;
+              } else {
+                  // ШТРАФ: Чувствительное растение в неблагоприятном климате
+                  if (tolerance === 'tolerant' && plant.tags.tolerance === 'sensitive') {
+                      score -= 30;
+                  }
+              }
+              
+              // 5. РАЗМЕР (Дифференциация)
+              if (plant.tags.size === size) {
+                  score += 15;
+              }
+              
+              // 6. ДОПОЛНИТЕЛЬНЫЕ ПАРАМЕТРЫ (для точной дифференциации)
+              
+              // Отделяем Крупную Стрелицию от Крупной Монстеры: 
+              // Стрелиция - High Light + Tolerant. Монстера - Medium/High Light + Sensitive.
+              if (plant.id === 'strelitzia' && light === 'high' && tolerance === 'tolerant') score += 15;
+              
+              // Отделяем Маранту от Калатеи (оба безопасны, чувствительны, часто поливаются, компактны)
+              // Маранта - Low/Medium Light, Calathea - Low/Medium Light. Учитываем Low light.
+              if (plant.id === 'maranta' && light === 'low' && water === 'frequent') score += 10;
+              
+              // Отделяем Фикус от Монстеры: Фикус лучше переносит Medium/Rare water.
+              if (plant.id === 'ficus_elastica' && light === 'high' && water === 'medium' && tolerance === 'tolerant') score += 15;
+
+              return { ...plant, score };
+            });
+
+            // 2. Сортировка и выбор лучшего
+            scoredCandidates.sort((a, b) => b.score - a.score);
+            
+            const bestMatch = scoredCandidates[0];
+
+            // 3. Обработка низкого балла (fallback)
+            if (bestMatch.score < 20) {
+                const fallbackPlant = plantsDB.find(p => p.id === 'chlorophytum');
+                return {
+                    bestMatch: {
+                        ...fallbackPlant,
+                        why: "Ваши условия крайне экстремальны или содержат противоречия, которые могут убить большинство растений (например, 'Частый полив' и 'Южное солнце'). Мы рекомендуем Хлорофитум — он справится со всеми переменными, пока вы не определитесь с точными условиями.",
+                        quote: "Лучший план — это тот, который готов к худшему.",
+                    },
+                    isFallback: true
+                };
+            }
+
+            return { bestMatch, isFallback: false };
+
+          }, [finished, answers]);
+
+
+          // --- ЭКРАН РЕЗУЛЬТАТА ---
+          if (finished && bestMatchData) {
+            const { bestMatch } = bestMatchData;
+
+            return (
+              <div className="min-h-screen bg-stone-100 flex items-center justify-center p-4 font-sans text-stone-800">
+                <div className="bg-white max-w-lg w-full rounded-2xl shadow-2xl overflow-hidden">
+                  
+                  {/* ЦВЕТНОЙ БЛОК растения с красивым названием */}
+                  <div className={`w-full h-48 ${bestMatch.color} overflow-hidden relative transition-colors duration-500`}>
+                    {/* Стильный градиентный оверлей для названия */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent p-6 flex items-end">
+                        <div className="text-white">
+                            <p className="uppercase tracking-widest text-xs font-bold opacity-90 mb-1">Ваш идеальный подбор</p>
+                            <h1 className="text-3xl font-extrabold leading-tight">{bestMatch.name}</h1>
+                            <p className="italic opacity-90 text-xs">{bestMatch.latin}</p>
+                        </div>
+                    </div>
+                  </div>
+
+                  <div className="p-8">
+                    {/* Аргументация эксперта */}
+                    <div className="mb-6">
+                      <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-stone-800">
+                        <Check className="text-green-600" size={20}/> Рекомендация эксперта GreenMatch
+                      </h3>
+                      <p className="text-stone-600 leading-relaxed bg-green-50/50 p-4 rounded-xl border border-green-100 font-medium break-words">
+                        {bestMatch.why}
+                      </p>
+                    </div>
+                    
+                    {/* Вдохновляющая цитата */}
+                    <div className="mb-8 relative">
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-400 rounded-full"></div>
+                      <blockquote className="pl-4 py-2 italic text-stone-600 text-sm font-serif break-words">
+                        "{bestMatch.quote}"
+                      </blockquote>
+                    </div>
+                    
+                    {/* Описание */}
+                    <div className="mb-8">
+                      <h3 className="font-bold text-stone-800 text-base mb-2">Общее описание и уход</h3>
+                      <p className="text-stone-600 text-sm leading-relaxed break-words">{bestMatch.description}</p>
+                    </div>
+
+                    
+                    <button className="w-full bg-green-600 text-white py-4 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-300/50 mb-4 text-base">
+                      Собрать индивидуальный набор и заказать доставку
+                    </button>
+                    
+                    <button onClick={restart} className="w-full flex items-center justify-center gap-2 text-stone-500 text-sm hover:text-stone-800 transition-colors">
+                      <RefreshCw size={14} /> Перезапустить тест
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // --- ЭКРАН ВОПРОСА ---
+          if (!questions || questions.length === 0 || step >= questions.length) {
+              return <div className="p-8 text-center text-stone-500">Загрузка вопросов...</div>;
+          }
+          
+          const currentQ = questions[step];
+
+          return (
+            <div className="min-h-screen bg-[#F5F5F0] flex flex-col items-center justify-center p-4 font-sans text-stone-800">
+              
+              {/* Прогресс и заголовок */}
+              <div className="max-w-md w-full mb-6 flex justify-between items-end">
+                <div>
+                  <h2 className="text-xs font-bold tracking-widest text-stone-400 uppercase mb-1">Вопрос {step + 1} из 5</h2>
+                  <h1 className="text-xl font-extrabold text-stone-800">Подбор растения для дома</h1>
+                </div>
+                <div className="w-12 text-right font-mono text-stone-400 text-sm">{Math.round(progress)}%</div>
+              </div>
+
+              {/* Карточка вопроса */}
+              <div className="bg-white max-w-md w-full rounded-2xl shadow-xl p-8 relative overflow-hidden transition-all duration-300">
+                
+                {/* Прогресс-бар */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-green-600">
+                  <div 
+                    className="h-full bg-green-700 transition-all duration-500 ease-out" 
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+
+                {/* Заголовок вопроса */}
+                <div className="flex items-start gap-4 mb-6">
+                  <div className="p-3 bg-green-100 rounded-xl text-green-700 shadow-md">
+                    {currentQ.icon}
+                  </div>
+                  <div>
+                    <h2 className="text-lg md:text-xl font-bold leading-tight mb-2 text-stone-800">{currentQ.text}</h2>
+                    <p className="text-sm text-stone-500">{currentQ.sub}</p>
+                  </div>
+                </div>
+
+                {/* Варианты ответов */}
+                <div className="space-y-3">
+                  {currentQ.options.map((opt, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSelect(currentQ.id, opt.value)}
+                      className="w-full text-left p-4 rounded-xl border-2 border-stone-200 bg-white hover:border-green-500 hover:bg-green-50 transition-all duration-200 group relative shadow-sm"
+                    >
+                      <div className="flex flex-col items-start">
+                        <span className="block font-semibold text-base text-stone-700 group-hover:text-green-800">{opt.text}</span>
+                        {opt.desc && <span className="text-xs text-stone-400 mt-1 block group-hover:text-green-600">{opt.desc}</span>}
+                      </div>
+                      <ArrowRight className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 group-hover:text-green-700 opacity-0 group-hover:opacity-100 transition-all transform -translate-x-2 group-hover:translate-x-0" size={18} />
+                    </button>
+                  ))}
+                </div>
+
+                {/* Информационный блок */}
+                {currentQ.id === 'safe' && (
+                     <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 text-stone-700 rounded-xl flex items-start gap-3 text-sm">
+                        <Info size={18} className="mt-0.5 min-w-4 text-yellow-600"/>
+                        <p>
+                            Важно: Если вы выбираете «Да, нужна полная безопасность», наш алгоритм исключает 9 из 12 растений, фокусируясь только на нетоксичных (Хлорофитум, Калатея, Маранта)
+                        </p>
+                     </div>
+                )}
+              </div>
+
+            </div>
+          );
+        }
+
+        // Рендеринг приложения
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
